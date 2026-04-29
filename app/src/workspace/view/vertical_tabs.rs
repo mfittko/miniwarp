@@ -22,11 +22,11 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use crate::appearance::Appearance;
-use crate::features::is_terminal_core_mode;
 use crate::context_chips::display_chip::GitLineChanges;
 use crate::context_chips::github_pr_display_text_from_url;
 use crate::drive::{cloud_object_styling::warp_drive_icon_color, DriveObjectType};
 use crate::editor::EditorView;
+use crate::features::is_terminal_core_mode;
 use crate::pane_group::pane::IPaneType;
 use crate::pane_group::TerminalPane;
 use crate::pane_group::{

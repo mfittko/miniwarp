@@ -24,13 +24,13 @@ use crate::ai::blocklist::{
     BlocklistAIContextEvent, BlocklistAIContextModel, BlocklistAIHistoryEvent,
     BlocklistAIInputEvent, BlocklistAIInputModel,
 };
-use crate::features::is_terminal_core_mode;
 use crate::ai::document::ai_document_model::{AIDocumentModel, AIDocumentModelEvent};
 use crate::ai::mcp::{
     templatable_manager::{FigmaMcpStatus, TemplatableMCPServerManagerEvent},
     TemplatableMCPServerManager,
 };
 use crate::ai::request_usage_model::{AIRequestUsageModel, AIRequestUsageModelEvent};
+use crate::features::is_terminal_core_mode;
 use crate::search::slash_command_menu::static_commands::commands;
 use crate::terminal::input::buffer_model::{InputBufferModel, InputBufferUpdateEvent};
 use crate::terminal::input::message_bar::attached_context::{

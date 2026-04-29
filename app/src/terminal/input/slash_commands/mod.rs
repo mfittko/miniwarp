@@ -5,8 +5,8 @@ mod view;
 pub use data_source::*;
 pub use view::*;
 
-use ai::skills::SkillReference;
 use crate::features::is_terminal_core_mode;
+use ai::skills::SkillReference;
 use warp_core::features::FeatureFlag;
 use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::appearance::Appearance;
