@@ -193,8 +193,9 @@ impl BlocklistAIInputModel {
                 },
             );
 
-            ctx.subscribe_to_model(&AISettings::handle(ctx), move |me, event, ctx| {
-                match event {
+            ctx.subscribe_to_model(
+                &AISettings::handle(ctx),
+                move |me, event, ctx| match event {
                     AISettingsChangedEvent::AIAutoDetectionEnabled { .. }
                         if FeatureFlag::AgentView.is_enabled() =>
                     {
@@ -236,8 +237,8 @@ impl BlocklistAIInputModel {
                         );
                     }
                     _ => (),
-                }
-            });
+                },
+            );
 
             if FeatureFlag::AgentView.is_enabled() {
                 ctx.subscribe_to_model(&agent_view_controller, |me, event, ctx| match event {

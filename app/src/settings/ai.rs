@@ -22,10 +22,10 @@ use warpui::{
     platform::keyboard::KeyCode, AppContext, Entity, ModelContext, SingletonEntity, UpdateModel,
 };
 
+use crate::features::is_terminal_core_mode;
 use settings::{
     define_settings_group, RespectUserSyncSetting, Setting, SupportedPlatforms, SyncToCloud,
 };
-use crate::features::is_terminal_core_mode;
 use warp_core::execution_mode::AppExecutionMode;
 use warp_core::features::FeatureFlag;
 
