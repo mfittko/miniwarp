@@ -49,7 +49,6 @@ use crate::{
             GitFileStatus, InvalidationBehavior,
         },
         editor_state::CodeReviewEditorState,
-        hidden_lines::calculate_hidden_lines,
         telemetry_event::{
             AddToContextOrigin, CodeReviewContextDestination, CodeReviewTelemetryEvent,
             PaneStateChange,
@@ -284,17 +283,12 @@ where
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PrimaryGitActionMode {
     /// There are uncommitted changes. Primary = Commit, dropdown shows
-    /// Commit / Push-or-Publish / Create PR with per-item disabled states.
+    /// Commit / Create PR with per-item disabled states.
     Commit,
-    /// Branch has an upstream and unpushed local commits. Primary = Push,
-    /// dropdown shows Commit (greyed) / Push / Create PR.
-    Push,
     /// Nothing to commit or push, and no existing PR. Primary = Create PR, chevron hidden.
     CreatePr,
     /// Nothing to commit or push, and a PR exists for this branch. Primary = PR #N, chevron hidden.
     ViewPr,
-    /// No upstream tracking branch, but local commits exist. Primary = Publish, chevron hidden.
-    Publish,
 }
 
 const DEFAULT_FILE_SIDEBAR_WIDTH: f32 = 250.;
@@ -393,10 +387,8 @@ pub enum CodeReviewAction {
     OpenRepository,
     OpenCommitDialog,
     ToggleGitOperationsMenu,
-    OpenPushDialog,
     OpenCreatePrDialog,
     ViewPr(String),
-    PublishBranch,
 }
 
 pub struct FileState {
@@ -3721,12 +3713,6 @@ impl CodeReviewView {
                 // When global buffer is enabled (and file is not deleted), we only need to set the base to the content at HEAD.
                 // For deleted files or when global buffer is disabled, we need to populate the buffer directly.
                 if is_deleted_file {
-                    let line_count = file_content.lines().count();
-                    range = Some(calculate_hidden_lines(
-                        &diff_deltas,
-                        line_count,
-                        comment_line_numbers,
-                    ));
                     let state = InitialBufferState::plain_text(file_content).with_version(version);
                     // Reset editor state with incoming content.
                     local_editor.reset_with_state(state, ctx);
@@ -6735,14 +6721,6 @@ impl CodeReviewView {
                     )
                 })
             }
-            GitDialogKind::Push { publish } => {
-                let commits = self
-                    .diff_state_model
-                    .read(ctx, |model, _| model.unpushed_commits().to_vec());
-                ctx.add_typed_action_view(|ctx| {
-                    GitDialog::new_for_push(repo_path, branch_name, publish, commits, ctx)
-                })
-            }
             GitDialogKind::CreatePr => ctx.add_typed_action_view(|ctx| {
                 GitDialog::new_for_pr(repo_path, branch_name, parent_branch_name, ctx)
             }),
@@ -6770,17 +6748,12 @@ impl CodeReviewView {
         let diff_state = self.diff_state_model.as_ref(app);
         let has_uncommitted_changes = self.has_uncommitted_changes(app);
         let has_upstream = diff_state.upstream_ref().is_some();
-        let has_local_commits = !diff_state.unpushed_commits().is_empty();
         // False when upstream == main (e.g. after `git checkout -b feature origin/master`),
         // which means the branch hasn't been pushed to its own remote ref yet.
         let upstream_differs_from_main = diff_state.upstream_differs_from_main();
 
         if has_uncommitted_changes {
             PrimaryGitActionMode::Commit
-        } else if !has_upstream && has_local_commits {
-            PrimaryGitActionMode::Publish
-        } else if has_local_commits {
-            PrimaryGitActionMode::Push
         } else if diff_state.pr_info().is_some() {
             PrimaryGitActionMode::ViewPr
         } else if has_upstream && !diff_state.is_on_main_branch() && upstream_differs_from_main {
@@ -6815,21 +6788,6 @@ impl CodeReviewView {
                     button.set_tooltip(disabled.then_some("No git actions available"), ctx);
                 });
             }
-            PrimaryGitActionMode::Push => {
-                self.git_primary_action_button.update(ctx, |button, ctx| {
-                    button.set_label("Push", ctx);
-                    button.set_icon(Some(Icon::ArrowUp), ctx);
-                    button.set_disabled(false, ctx);
-                    button.set_on_click(
-                        |ctx| ctx.dispatch_typed_action(CodeReviewAction::OpenPushDialog),
-                        ctx,
-                    );
-                    button.set_adjoined_side(AdjoinedSide::Right, ctx);
-                });
-                self.git_operations_chevron.update(ctx, |button, ctx| {
-                    button.set_disabled(false, ctx);
-                });
-            }
             PrimaryGitActionMode::CreatePr => {
                 self.git_primary_action_button.update(ctx, |button, ctx| {
                     button.set_label("Create PR", ctx);
@@ -6862,18 +6820,6 @@ impl CodeReviewView {
                     });
                 }
             }
-            PrimaryGitActionMode::Publish => {
-                self.git_primary_action_button.update(ctx, |button, ctx| {
-                    button.set_label("Publish", ctx);
-                    button.set_icon(Some(Icon::UploadCloud), ctx);
-                    button.set_disabled(false, ctx);
-                    button.set_on_click(
-                        |ctx| ctx.dispatch_typed_action(CodeReviewAction::PublishBranch),
-                        ctx,
-                    );
-                    button.clear_adjoined_side(ctx);
-                });
-            }
         }
 
         ctx.notify();
@@ -6888,25 +6834,6 @@ impl CodeReviewView {
             .with_on_select_action(CodeReviewAction::OpenCommitDialog)
             .with_disabled(disabled)
             .into_item()
-    }
-
-    /// Returns the "send commits to remote" dropdown item: `Push` when the
-    /// branch already has an upstream, `Publish` otherwise (first push also
-    /// sets the upstream).
-    fn push_or_publish_menu_item(has_upstream: bool, disabled: bool) -> MenuItem<CodeReviewAction> {
-        if has_upstream {
-            MenuItemFields::new("Push")
-                .with_icon(Icon::ArrowUp)
-                .with_on_select_action(CodeReviewAction::OpenPushDialog)
-                .with_disabled(disabled)
-                .into_item()
-        } else {
-            MenuItemFields::new("Publish")
-                .with_icon(Icon::UploadCloud)
-                .with_on_select_action(CodeReviewAction::PublishBranch)
-                .with_disabled(disabled)
-                .into_item()
-        }
     }
 
     /// Returns the PR dropdown item: "PR #N" linking to the existing PR, or
@@ -6932,34 +6859,17 @@ impl CodeReviewView {
         }
     }
 
-    /// Items for the git operations dropdown (chevron button). All three
-    /// operations (Commit / Push / Create PR) are always listed so the
+    /// Items for the git operations dropdown (chevron button). All supported
+    /// operations (Commit / Create PR) are always listed so the
     /// dropdown shape is stable across modes; the primary mode determines
     /// which are enabled.
     fn git_operations_menu_items(&self, app: &AppContext) -> Vec<MenuItem<CodeReviewAction>> {
-        let diff_state = self.diff_state_model.as_ref(app);
-        let has_local_commits = !diff_state.unpushed_commits().is_empty();
-        let has_upstream = diff_state.upstream_ref().is_some();
         match self.primary_git_action_mode(app) {
             PrimaryGitActionMode::Commit => vec![
                 Self::commit_menu_item(false),
-                // Middle item sends existing commits to the remote. Uncommitted
-                // changes in the working tree don't block this — only whether
-                // there are local commits to send.
-                Self::push_or_publish_menu_item(has_upstream, !has_local_commits),
-                // PR item handles its own disabled state (main branch, no
-                // upstream). Uncommitted changes don't block it: the PR is
-                // based on whatever's already been pushed.
                 self.pr_menu_item(app),
             ],
-            PrimaryGitActionMode::Push => vec![
-                Self::commit_menu_item(true),
-                Self::push_or_publish_menu_item(has_upstream, false),
-                self.pr_menu_item(app),
-            ],
-            PrimaryGitActionMode::CreatePr
-            | PrimaryGitActionMode::ViewPr
-            | PrimaryGitActionMode::Publish => {
+            PrimaryGitActionMode::CreatePr | PrimaryGitActionMode::ViewPr => {
                 // Chevron is hidden in these modes, so the menu is never opened.
                 vec![]
             }
@@ -7661,12 +7571,6 @@ impl TypedActionView for CodeReviewView {
             }
             CodeReviewAction::OpenCommitDialog => {
                 self.open_git_dialog(GitDialogKind::Commit, ctx);
-            }
-            CodeReviewAction::PublishBranch => {
-                self.open_git_dialog(GitDialogKind::Push { publish: true }, ctx);
-            }
-            CodeReviewAction::OpenPushDialog => {
-                self.open_git_dialog(GitDialogKind::Push { publish: false }, ctx);
             }
             CodeReviewAction::OpenCreatePrDialog => {
                 self.open_git_dialog(GitDialogKind::CreatePr, ctx);

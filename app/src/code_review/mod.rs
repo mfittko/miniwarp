@@ -8,7 +8,6 @@ pub mod editor_state;
 pub(crate) mod find_model;
 pub(crate) mod git_dialog;
 pub mod git_status_update;
-mod hidden_lines;
 pub mod telemetry_event;
 #[cfg_attr(not(feature = "local_fs"), allow(unused_imports))]
 pub use telemetry_event::CodeReviewTelemetryEvent;
@@ -78,7 +77,6 @@ pub fn init(app: &mut AppContext) {
         id!("CodeReviewView") & !id!("IMEOpen"),
     )]);
 
-    diff_menu::init(app);
     diff_selector::init(app);
     git_dialog::init(app);
 }
