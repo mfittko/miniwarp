@@ -35,6 +35,7 @@ use crate::{
     },
     completer::SessionContext,
     drive::settings::WarpDriveSettings,
+    features::is_terminal_core_mode,
     search::{
         command_search::searcher::{CommandSearchItemAction, CommandSearchMixer},
         result_renderer::{QueryResultRenderer, QueryResultRendererStyles},
@@ -63,7 +64,7 @@ use super::{
     zero_state::{CommandSearchZeroStateEvent, CommandSearchZeroStateView},
 };
 
-const DEFAULT_PLACEHOLDER_TEXT: &str = "Search your history, workflows, and more";
+const DEFAULT_PLACEHOLDER_TEXT: &str = "Search your history and # AI command suggestions";
 const PANEL_POSITION_ID: &str = "CommandSearchViewPanel";
 const DETAILS_PANEL_MARGIN: f32 = 4.;
 const MIN_WIDTH_RATIO: f32 = 0.25;
@@ -230,6 +231,7 @@ impl CommandSearchView {
     ) {
         self.mixer.update(ctx, |mixer, ctx| {
             mixer.reset(ctx);
+            let terminal_core_mode = is_terminal_core_mode();
 
             // Add data sources in lowest->highest priority order.  If results from two
             // data sources produce the same ranking score, the data source added first
@@ -251,7 +253,7 @@ impl CommandSearchView {
                 );
             }
 
-            if WarpDriveSettings::is_warp_drive_enabled(ctx) {
+            if !terminal_core_mode && WarpDriveSettings::is_warp_drive_enabled(ctx) {
                 mixer.add_sync_source(
                     WorkflowsDataSource::new(session_context.as_ref(), ctx),
                     HashSet::from([QueryFilter::Workflows]),
@@ -294,7 +296,9 @@ impl CommandSearchView {
                 );
             }
 
-            if FeatureFlag::AgentMode.is_enabled() && AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
+            if !terminal_core_mode
+                && FeatureFlag::AgentMode.is_enabled()
+                && AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
             {
                 mixer.add_sync_source(
                     AIQueriesDataSource::new(),

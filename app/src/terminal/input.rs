@@ -153,7 +153,7 @@ use crate::{
         PropagateHorizontalNavigationKeys, ReplicaId, TextColors, TextRun,
         MAX_IMAGES_PER_CONVERSATION,
     },
-    features::FeatureFlag,
+    features::{is_terminal_core_mode, FeatureFlag},
     input_suggestions::{
         Event as InputSuggestionsEvent, HistoryInputSuggestion, InputSuggestions,
         TabCompletionsPreselectOption,
@@ -9468,10 +9468,17 @@ impl Input {
             // For this view, the terminal Input, we do not support ex-commands. The closest
             // analogy we have in this view would be workflows. So, open command search with the
             // workflows filter to handle this event.
-            EditorEvent::ExCommand => ctx.emit(Event::ShowCommandSearch(CommandSearchOptions {
-                filter: Some(QueryFilter::Workflows),
-                init_content: InitContent::Custom("".to_owned()),
-            })),
+            EditorEvent::ExCommand => {
+                let filter = if is_terminal_core_mode() {
+                    QueryFilter::History
+                } else {
+                    QueryFilter::Workflows
+                };
+                ctx.emit(Event::ShowCommandSearch(CommandSearchOptions {
+                    filter: Some(filter),
+                    init_content: InitContent::Custom("".to_owned()),
+                }))
+            }
             EditorEvent::VimStatusUpdate => ctx.notify(),
             EditorEvent::BackspaceOnEmptyBuffer => {
                 self.maybe_backspace_ai_icon(ctx);

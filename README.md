@@ -19,13 +19,13 @@
 </p>
 
 > [!NOTE]
-> OpenAI is the founding sponsor of the new, open-source Warp repository, and the new agentic management workflows are powered by GPT models.
+> This fork is focused on a simpler product direction: a better terminal with lightweight `#`-triggered AI command suggestions.
 
 <h1></h1>
 
 ## About
 
-[Warp](https://www.warp.dev) is an agentic development environment, born out of the terminal. Use Warp's built-in coding agent, or bring your own CLI agent (Claude Code, Codex, Gemini CLI, and others).
+[Warp](https://www.warp.dev) in this repository is being reduced toward its terminal core: tabs, panes, history, completions, shell integration, and explicit `#`-triggered AI command suggestions.
 
 ## Installation
 

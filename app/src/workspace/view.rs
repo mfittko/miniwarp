@@ -316,7 +316,7 @@ use crate::terminal::{self, SizeInfo, TerminalView};
 #[cfg(target_os = "macos")]
 use crate::workspace::cli_install;
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::{report_if_error, AgentNotificationsModel};
+use crate::{features::is_terminal_core_mode, report_if_error, AgentNotificationsModel};
 use ::settings::{Setting, ToggleableSetting};
 use warp_core::features::FeatureFlag;
 
@@ -5992,6 +5992,64 @@ impl Workspace {
         &self,
         ctx: &mut ViewContext<Self>,
     ) -> Vec<MenuItem<WorkspaceAction>> {
+        if is_terminal_core_mode() {
+            let shortcut_label = keybinding_name_to_display_string(NEW_TAB_BINDING_NAME, ctx);
+            let mut menu_items = vec![];
+
+            #[cfg(target_os = "windows")]
+            {
+                menu_items.push(
+                    MenuItemFields::new("Terminal")
+                        .with_on_select_action(WorkspaceAction::AddTerminalTab {
+                            hide_homepage: false,
+                        })
+                        .with_icon(icons::Icon::LayoutAlt01)
+                        .with_key_shortcut_label(shortcut_label.clone())
+                        .into_item(),
+                );
+
+                #[cfg(feature = "local_tty")]
+                if FeatureFlag::ShellSelector.is_enabled() {
+                    AvailableShells::handle(ctx).read(ctx, |model, _| {
+                        for shell in model.get_available_shells() {
+                            let shell_name = model.display_name_for_shell(shell);
+                            let icon = shell
+                                .get_valid_shell_path_and_type()
+                                .and_then(|shell_launch_data| {
+                                    ShellIndicatorType::try_from(&shell_launch_data).ok()
+                                })
+                                .map(|shell_indicator_type| shell_indicator_type.to_icon())
+                                .unwrap_or(icons::Icon::Terminal);
+                            menu_items.push(
+                                MenuItemFields::new(shell_name)
+                                    .with_on_select_action(WorkspaceAction::AddTabWithShell {
+                                        shell: shell.clone(),
+                                        source: AddTabWithShellSource::ShellSelectorMenu,
+                                    })
+                                    .with_icon(icon)
+                                    .into_item(),
+                            );
+                        }
+                    });
+                }
+            }
+
+            #[cfg(not(target_os = "windows"))]
+            {
+                menu_items.push(
+                    MenuItemFields::new("Terminal")
+                        .with_on_select_action(WorkspaceAction::AddTerminalTab {
+                            hide_homepage: false,
+                        })
+                        .with_icon(icons::Icon::LayoutAlt01)
+                        .with_key_shortcut_label(shortcut_label)
+                        .into_item(),
+                );
+            }
+
+            return menu_items;
+        }
+
         let mut menu_items = vec![];
 
         let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
@@ -7745,6 +7803,9 @@ impl Workspace {
     }
 
     fn open_left_panel(&mut self, ctx: &mut ViewContext<Self>) {
+        if is_terminal_core_mode() {
+            return;
+        }
         self.left_panel_open = true;
 
         let active_pane_group = self.active_tab_pane_group().clone();
@@ -7759,6 +7820,9 @@ impl Workspace {
     /// Once we've done this once, we persist a preference so subsequent restarts
     /// will respect the user's visibility preference (restored from workspace state).
     fn maybe_auto_open_conversation_list(&mut self, ctx: &mut ViewContext<Self>) {
+        if is_terminal_core_mode() {
+            return;
+        }
         if !FeatureFlag::AgentViewConversationListView.is_enabled()
             || !AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
         {
@@ -7849,6 +7913,9 @@ impl Workspace {
     }
 
     fn toggle_left_panel(&mut self, ctx: &mut ViewContext<Self>) {
+        if is_terminal_core_mode() {
+            return;
+        }
         let active_pane_group = self.active_tab_pane_group().clone();
 
         let was_open = active_pane_group.read(ctx, |pane_group, _| pane_group.left_panel_open);
@@ -8089,6 +8156,9 @@ impl Workspace {
         pane_group_handle: &ViewHandle<PaneGroup>,
         ctx: &mut ViewContext<Self>,
     ) {
+        if is_terminal_core_mode() {
+            return;
+        }
         let target_open_state =
             pane_group_handle.read(ctx, |pane_group, _| !pane_group.right_panel_open);
 
@@ -14899,6 +14969,15 @@ impl Workspace {
                         );
                     }
                     OpenWarpAI => {
+                        if is_terminal_core_mode() {
+                            active_input_handle.update(ctx, |input, ctx| {
+                                let content = format!("# {query}");
+                                input.focus_input_box(ctx);
+                                input.user_replace_editor_text(content.as_str(), ctx);
+                                ctx.notify();
+                            });
+                            return;
+                        }
                         if !AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
                             return;
                         }
@@ -19517,6 +19596,9 @@ impl Workspace {
     }
 
     fn open_left_panel_view(&mut self, action: &LeftPanelAction, ctx: &mut ViewContext<Self>) {
+        if is_terminal_core_mode() {
+            return;
+        }
         if !self.active_tab_pane_group().as_ref(ctx).left_panel_open {
             self.toggle_left_panel(ctx);
         }
@@ -19535,6 +19617,9 @@ impl Workspace {
         is_showing_target_view: bool,
         ctx: &mut ViewContext<Self>,
     ) {
+        if is_terminal_core_mode() {
+            return;
+        }
         let is_left_panel_open = self.active_tab_pane_group().as_ref(ctx).left_panel_open;
 
         if is_left_panel_open && is_showing_target_view {
@@ -19548,6 +19633,9 @@ impl Workspace {
 
     /// Computes the list of available left panel views based on current AI settings and feature flags.
     fn compute_left_panel_views(ctx: &AppContext) -> Vec<ToolPanelView> {
+        if is_terminal_core_mode() {
+            return vec![];
+        }
         let mut views = vec![];
         if FeatureFlag::AgentViewConversationListView.is_enabled()
             && AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
@@ -19699,6 +19787,10 @@ impl TypedActionView for Workspace {
                 self.close_tabs_direction(self.active_tab_index, TabMovement::Right, false, ctx)
             }
             AddDefaultTab => {
+                if is_terminal_core_mode() {
+                    self.add_terminal_tab(false, ctx);
+                    return;
+                }
                 let effective_mode = AISettings::as_ref(ctx).default_session_mode(ctx);
                 match effective_mode {
                     DefaultSessionMode::TabConfig => {
@@ -19751,11 +19843,31 @@ impl TypedActionView for Workspace {
                 self.add_tab_with_shell(shell.clone(), *source, ctx)
             }
             AddGetStartedTab => self.add_get_started_tab(ctx),
-            AddAmbientAgentTab => self.add_ambient_agent_tab(ctx),
-            AddAgentTab => self.add_terminal_tab_with_new_agent_view(ctx),
-            AddDockerSandboxTab => self.add_docker_sandbox_tab(ctx),
+            AddAmbientAgentTab => {
+                if is_terminal_core_mode() {
+                    self.add_terminal_tab(false, ctx);
+                } else {
+                    self.add_ambient_agent_tab(ctx);
+                }
+            }
+            AddAgentTab => {
+                if is_terminal_core_mode() {
+                    self.add_terminal_tab(false, ctx);
+                } else {
+                    self.add_terminal_tab_with_new_agent_view(ctx);
+                }
+            }
+            AddDockerSandboxTab => {
+                if is_terminal_core_mode() {
+                    self.add_terminal_tab(false, ctx);
+                } else {
+                    self.add_docker_sandbox_tab(ctx);
+                }
+            }
             StartAgentOnboardingTutorial(tutorial) => {
-                self.start_agent_onboarding_tutorial(tutorial.clone(), ctx)
+                if !is_terminal_core_mode() {
+                    self.start_agent_onboarding_tutorial(tutorial.clone(), ctx)
+                }
             }
             OpenNewSessionMenu { position } => self.open_new_session_dropdown_menu(*position, ctx),
             ToggleTabConfigsMenu => self.toggle_tab_configs_menu(ctx),

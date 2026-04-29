@@ -6,6 +6,7 @@ use crate::{
         AI_ASSISTANT_LOGO_COLOR,
     },
     appearance::Appearance,
+    features::is_terminal_core_mode,
     features::FeatureFlag,
     search::{
         command_search::searcher::CommandSearchItemAction,
@@ -37,7 +38,8 @@ use warpui::{
 };
 
 const OPEN_WARP_AI_ITEM_BODY_TEXT: &str = "Ask Warp AI for command suggestions";
-const TRANSLATE_WITH_WARP_AI_ITEM_BODY_TEXT: &str = "Translate into shell command using Warp AI";
+const TRANSLATE_WITH_WARP_AI_ITEM_BODY_TEXT: &str =
+    "Suggest shell commands from your natural-language query";
 
 #[derive(Clone, Debug)]
 pub enum WarpAISearchItem {
@@ -176,6 +178,9 @@ impl SyncDataSource for WarpAIDataSource {
         query: &Query,
         _app: &AppContext,
     ) -> Result<Vec<QueryResult<Self::Action>>, DataSourceRunErrorWrapper> {
+        if is_terminal_core_mode() {
+            return Ok(vec![WarpAISearchItem::Translate.into()]);
+        }
         if query.filters.is_empty() {
             Ok(vec![WarpAISearchItem::Translate.into()])
         } else {

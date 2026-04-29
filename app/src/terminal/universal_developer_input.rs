@@ -5,6 +5,7 @@ use crate::settings::InputSettings;
 use crate::{
     ai::{blocklist::block::cli_controller::CLISubagentController, llms::LLMPreferences},
     cloud_object::model::generic_string_model::StringModel,
+    features::is_terminal_core_mode,
     settings::AISettingsChangedEvent,
     terminal::profile_model_selector::{
         calculate_max_profile_name_width, calculate_scaled_font_size,
@@ -20,7 +21,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use warpui::{
     elements::{
-        ChildView, Clipped, Container, CornerRadius, CrossAxisAlignment, Fill, Flex,
+        ChildView, Clipped, Container, CornerRadius, CrossAxisAlignment, Empty, Fill, Flex,
         MainAxisAlignment, MainAxisSize, ParentElement, Radius, Rect, Shrinkable,
         SizeConstraintCondition, SizeConstraintSwitch,
     },
@@ -433,10 +434,16 @@ impl UniversalDeveloperInputButtonBar {
         let ai_settings = AISettings::as_ref(ctx);
         let is_autodetection_enabled = ai_settings.is_ai_autodetection_enabled(ctx);
 
-        let mut options = vec![InputToggleMode::Terminal, InputToggleMode::AgentMode];
+        let mut options = if is_terminal_core_mode() {
+            vec![InputToggleMode::Terminal]
+        } else {
+            vec![InputToggleMode::Terminal, InputToggleMode::AgentMode]
+        };
 
         let mut default_option = input_model.as_ref(ctx).into();
-        if is_autodetection_enabled {
+        if is_terminal_core_mode() {
+            default_option = InputToggleMode::Terminal;
+        } else if is_autodetection_enabled {
             options.push(InputToggleMode::AutoDetection);
         } else if default_option == InputToggleMode::AutoDetection {
             // Don't set the default to auto-detection if it's not enabled.
@@ -498,6 +505,13 @@ impl UniversalDeveloperInputButtonBar {
             // Re-render when AI settings change (like voice input enabled/disabled)
             // Also update segmented control options when auto-detection setting changes
             if let AISettingsChangedEvent::AIAutoDetectionEnabled { .. } = event {
+                if is_terminal_core_mode() {
+                    me.segmented_control.update(ctx, |segmented_control, ctx| {
+                        segmented_control.update_options(vec![InputToggleMode::Terminal], ctx);
+                    });
+                    ctx.notify();
+                    return;
+                }
                 let is_autodection_enabled =
                     ai_settings.as_ref(ctx).is_ai_autodetection_enabled(ctx);
                 me.segmented_control.update(ctx, |segmented_control, ctx| {
@@ -788,6 +802,9 @@ impl View for UniversalDeveloperInputButtonBar {
     }
 
     fn render(&self, app: &AppContext) -> Box<dyn warpui::Element> {
+        if is_terminal_core_mode() {
+            return Empty::new().finish();
+        }
         let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
         #[cfg(feature = "voice_input")]

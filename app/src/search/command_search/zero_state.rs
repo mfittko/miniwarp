@@ -14,6 +14,7 @@ use warpui::{
 
 use crate::appearance::Appearance;
 use crate::drive::settings::{WarpDriveSettings, WarpDriveSettingsChangedEvent};
+use crate::features::is_terminal_core_mode;
 use crate::search::FilterChipRenderer;
 use crate::search::QueryFilter;
 use crate::settings::{AISettings, AISettingsChangedEvent};
@@ -291,6 +292,13 @@ impl TypedActionView for CommandSearchZeroStateView {
 /// notebooks feature flag is disabled.
 fn valid_query_filters(app: &AppContext) -> Vec<QueryFilter> {
     let mut filters = vec![QueryFilter::History];
+
+    if is_terminal_core_mode() {
+        if AISettings::as_ref(app).is_any_ai_enabled(app) {
+            filters.push(QueryFilter::NaturalLanguage);
+        }
+        return filters;
+    }
 
     if FeatureFlag::AgentMode.is_enabled() && AISettings::as_ref(app).is_any_ai_enabled(app) {
         if FeatureFlag::AgentModeWorkflows.is_enabled() {

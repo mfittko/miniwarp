@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::auth::AuthStateProvider;
 use crate::default_terminal::DefaultTerminal;
-use crate::features::{runtime_flags_menu_items, FeatureFlag};
+use crate::features::{is_terminal_core_mode, runtime_flags_menu_items, FeatureFlag};
 use crate::root_view::OpenLaunchConfigArg;
 use crate::server::telemetry::LaunchConfigUiLocation;
 use crate::settings::{
@@ -61,18 +61,21 @@ const MAX_RECENT_REPOS_IN_MENU: usize = 10;
 
 /// Creates the root app menu bar
 pub fn menu_bar(ctx: &mut AppContext) -> MenuBar {
-    MenuBar::new(vec![
+    let mut menus = vec![
         make_new_app_menu(ctx),
         make_new_file_menu(ctx),
         make_new_edit_menu(ctx),
         make_new_view_menu(ctx),
         make_new_tab_menu(ctx),
         make_new_blocks_menu(ctx),
-        make_new_ai_menu(ctx),
-        make_new_drive_menu(ctx),
         make_new_window_menu(),
         make_new_help_menu(),
-    ])
+    ];
+    if !is_terminal_core_mode() {
+        menus.insert(6, make_new_ai_menu(ctx));
+        menus.insert(7, make_new_drive_menu(ctx));
+    }
+    MenuBar::new(menus)
 }
 
 // Creates the app dock menu
@@ -970,6 +973,7 @@ fn make_launch_config_menu_items(ctx: &mut AppContext) -> Vec<MenuItem> {
 }
 
 fn make_new_elements_menu_items(ctx: &AppContext) -> Vec<MenuItem> {
+    let is_terminal_core_mode = is_terminal_core_mode();
     // Dynamically assign the workspace:new_tab keystroke (cmd-t) to whichever item
     // matches the user's "Default mode for new sessions" setting. The non-default item
     // shows its dedicated keystroke instead.
@@ -1005,39 +1009,45 @@ fn make_new_elements_menu_items(ctx: &AppContext) -> Vec<MenuItem> {
             },
             Some(Keystroke::parse("cmd-t").expect("Valid keystroke")),
         )),
-        MenuItem::Custom(CustomMenuItem::new(
-            "New Agent Tab",
-            open_new_agent_tab_or_window,
-            move |_props: &MenuItemProperties, ctx: &mut AppContext| {
-                let mut changes = MenuItemPropertyChanges::default();
-                let (is_any_ai_enabled, is_default_session_mode_agent) = AISettings::handle(ctx)
-                    .read(ctx, |ai_settings, ctx| {
-                        let enabled = ai_settings.is_any_ai_enabled(ctx);
-                        let agent = enabled
-                            && ai_settings.default_session_mode(ctx) == DefaultSessionMode::Agent;
-                        (enabled, agent)
-                    });
-                if !is_any_ai_enabled {
-                    changes.disabled = Some(true);
-                    return changes;
-                }
-                let trigger = if is_default_session_mode_agent {
-                    Trigger::Custom(CustomAction::NewTab.into())
-                } else {
-                    Trigger::Custom(CustomAction::NewAgentTab.into())
-                };
-                let binding = ctx
-                    .get_key_bindings()
-                    .find(|b| b.trigger == &trigger || b.original_trigger == Some(&trigger));
-                if let Some(binding) = binding {
-                    changes.keystroke = Some(bindings::trigger_to_keystroke(binding.trigger));
-                }
-                changes
-            },
-            None,
-        )),
         non_updateable_custom_item(CustomAction::NewFile, ctx),
     ];
+    if !is_terminal_core_mode {
+        new_elements_menu.insert(
+            2,
+            MenuItem::Custom(CustomMenuItem::new(
+                "New Agent Tab",
+                open_new_agent_tab_or_window,
+                move |_props: &MenuItemProperties, ctx: &mut AppContext| {
+                    let mut changes = MenuItemPropertyChanges::default();
+                    let (is_any_ai_enabled, is_default_session_mode_agent) =
+                        AISettings::handle(ctx).read(ctx, |ai_settings, ctx| {
+                            let enabled = ai_settings.is_any_ai_enabled(ctx);
+                            let agent = enabled
+                                && ai_settings.default_session_mode(ctx)
+                                    == DefaultSessionMode::Agent;
+                            (enabled, agent)
+                        });
+                    if !is_any_ai_enabled {
+                        changes.disabled = Some(true);
+                        return changes;
+                    }
+                    let trigger = if is_default_session_mode_agent {
+                        Trigger::Custom(CustomAction::NewTab.into())
+                    } else {
+                        Trigger::Custom(CustomAction::NewAgentTab.into())
+                    };
+                    let binding = ctx
+                        .get_key_bindings()
+                        .find(|b| b.trigger == &trigger || b.original_trigger == Some(&trigger));
+                    if let Some(binding) = binding {
+                        changes.keystroke = Some(bindings::trigger_to_keystroke(binding.trigger));
+                    }
+                    changes
+                },
+                None,
+            )),
+        );
+    }
 
     let reopen_session_action_updater =
         custom_action_updater(CustomAction::ReopenClosedSession, Box::new(|_| false));

@@ -3311,8 +3311,11 @@ impl FeaturesPageView {
             ctx,
             |dropdown: &mut FilterableDropdown<FeaturesPageAction>, ctx| {
                 let is_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+                let is_terminal_core_mode = crate::features::is_terminal_core_mode();
 
-                if is_ai_enabled {
+                if is_terminal_core_mode {
+                    dropdown.set_disabled(ctx);
+                } else if is_ai_enabled {
                     dropdown.set_enabled(ctx);
                 } else {
                     dropdown.set_disabled(ctx);
@@ -3325,46 +3328,61 @@ impl FeaturesPageView {
                 // Build items: built-in modes (skip TabConfig since configs are listed individually,
                 // and skip DockerSandbox when its feature flag is disabled).
                 let docker_sandbox_enabled = FeatureFlag::LocalDockerSandbox.is_enabled();
-                let mut items: Vec<DropdownItem<FeaturesPageAction>> = DefaultSessionMode::iter()
-                    .filter(|val| *val != DefaultSessionMode::TabConfig)
-                    .filter(|val| {
-                        *val != DefaultSessionMode::DockerSandbox || docker_sandbox_enabled
-                    })
-                    .map(|val| {
-                        DropdownItem::new(
-                            val.display_name(),
-                            FeaturesPageAction::SetDefaultSessionMode(val),
-                        )
-                    })
-                    .collect();
+                let mut items: Vec<DropdownItem<FeaturesPageAction>> = if is_terminal_core_mode {
+                    vec![DropdownItem::new(
+                        DefaultSessionMode::Terminal.display_name(),
+                        FeaturesPageAction::SetDefaultSessionMode(DefaultSessionMode::Terminal),
+                    )]
+                } else {
+                    DefaultSessionMode::iter()
+                        .filter(|val| *val != DefaultSessionMode::TabConfig)
+                        .filter(|val| {
+                            *val != DefaultSessionMode::DockerSandbox || docker_sandbox_enabled
+                        })
+                        .map(|val| {
+                            DropdownItem::new(
+                                val.display_name(),
+                                FeaturesPageAction::SetDefaultSessionMode(val),
+                            )
+                        })
+                        .collect()
+                };
 
                 // Append each loaded tab config
                 let tab_configs = WarpConfig::as_ref(ctx).tab_configs().to_vec();
-                for config in &tab_configs {
-                    if let Some(path) = &config.source_path {
-                        items.push(DropdownItem::new(
-                            config.name.clone(),
-                            FeaturesPageAction::SetDefaultTabConfig(
-                                path.to_string_lossy().into_owned(),
-                            ),
-                        ));
+                if !is_terminal_core_mode {
+                    for config in &tab_configs {
+                        if let Some(path) = &config.source_path {
+                            items.push(DropdownItem::new(
+                                config.name.clone(),
+                                FeaturesPageAction::SetDefaultTabConfig(
+                                    path.to_string_lossy().into_owned(),
+                                ),
+                            ));
+                        }
                     }
                 }
 
                 dropdown.set_items(items, ctx);
 
                 // Select the currently active item.
-                let selected_name = match current_mode {
-                    DefaultSessionMode::TabConfig => tab_configs
-                        .iter()
-                        .find(|c| {
-                            c.source_path
-                                .as_ref()
-                                .is_some_and(|p| p.to_string_lossy() == current_tab_config_path)
-                        })
-                        .map(|c| c.name.clone())
-                        .unwrap_or_else(|| DefaultSessionMode::Terminal.display_name().to_string()),
-                    other => other.display_name().to_string(),
+                let selected_name = if is_terminal_core_mode {
+                    DefaultSessionMode::Terminal.display_name().to_string()
+                } else {
+                    match current_mode {
+                        DefaultSessionMode::TabConfig => tab_configs
+                            .iter()
+                            .find(|c| {
+                                c.source_path
+                                    .as_ref()
+                                    .is_some_and(|p| p.to_string_lossy() == current_tab_config_path)
+                            })
+                            .map(|c| c.name.clone())
+                            .unwrap_or_else(|| {
+                                DefaultSessionMode::Terminal.display_name().to_string()
+                            }),
+                        other => other.display_name().to_string(),
+                    }
                 };
                 dropdown.set_selected_by_name(&selected_name, ctx);
             },

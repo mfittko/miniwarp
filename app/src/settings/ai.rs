@@ -25,6 +25,7 @@ use warpui::{
 use settings::{
     define_settings_group, RespectUserSyncSetting, Setting, SupportedPlatforms, SyncToCloud,
 };
+use crate::features::is_terminal_core_mode;
 use warp_core::execution_mode::AppExecutionMode;
 use warp_core::features::FeatureFlag;
 
@@ -1494,6 +1495,9 @@ impl AISettings {
     }
 
     pub fn default_session_mode(&self, app: &AppContext) -> DefaultSessionMode {
+        if is_terminal_core_mode() {
+            return DefaultSessionMode::Terminal;
+        }
         let mode = *self.default_session_mode_internal.value();
         match mode {
             // Terminal and TabConfig don't require AI.
