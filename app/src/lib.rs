@@ -68,7 +68,6 @@ mod referral_theme_status;
 #[allow(dead_code)]
 mod remote_server;
 mod resource_limits;
-mod reward_view;
 mod safe_triangle;
 mod search_bar;
 mod server;
@@ -1546,7 +1545,6 @@ fn initialize_app(
     root_view::init(ctx);
     voltron::init(ctx);
     auth::init(ctx);
-    reward_view::init(ctx);
     crate::view_components::find::init(ctx);
     prompt::editor_modal::init(ctx);
     if !features::is_terminal_core_mode() {

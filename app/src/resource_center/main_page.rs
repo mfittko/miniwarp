@@ -394,7 +394,7 @@ impl ResourceCenterMainView {
                 .with_text_and_icon_label(
                     TextAndIcon::new(
                         TextAndIconAlignment::IconFirst,
-                        "Invite a friend to Warp",
+                        "Join the Warp community",
                         Icon::new(SEND_SVG_PATH, appearance.theme().accent()),
                         MainAxisSize::Max,
                         MainAxisAlignment::Center,
@@ -403,9 +403,7 @@ impl ResourceCenterMainView {
                     .with_inner_padding(BUTTON_PADDING),
                 )
                 .build()
-                .on_click(|ctx, _, _| {
-                    ctx.dispatch_typed_action(WorkspaceAction::ShowReferralSettingsPage)
-                })
+                .on_click(|ctx, _, _| ctx.dispatch_typed_action(WorkspaceAction::JoinSlack))
                 .finish(),
         )
         .with_margin_top(SECTION_SPACING)
