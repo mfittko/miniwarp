@@ -76,7 +76,10 @@ use crate::{
     server::server_api::ServerApi,
     workspace::{view::OnboardingTutorial, PaneViewLocator, Workspace},
 };
-use crate::{features::FeatureFlag, ChannelState};
+use crate::{
+    features::{is_terminal_core_mode, FeatureFlag},
+    ChannelState,
+};
 use crate::{send_telemetry_from_app_ctx, GlobalResourceHandles, GlobalResourceHandlesProvider};
 use anyhow::Result;
 use cfg_if::cfg_if;
@@ -1725,13 +1728,15 @@ impl RootView {
         let server_api = server_api_provider.get();
         let auth_state = AuthStateProvider::as_ref(ctx).get().clone();
 
-        ctx.subscribe_to_model(&AuthManager::handle(ctx), |me, _, event, ctx| {
-            me.handle_auth_manager_event(event, ctx);
-        });
+        if !is_terminal_core_mode() {
+            ctx.subscribe_to_model(&AuthManager::handle(ctx), |me, _, event, ctx| {
+                me.handle_auth_manager_event(event, ctx);
+            });
 
-        ctx.subscribe_to_model(&CloudPreferencesSyncer::handle(ctx), |me, _, event, ctx| {
-            me.handle_cloud_preferences_syncer_event(event, ctx);
-        });
+            ctx.subscribe_to_model(&CloudPreferencesSyncer::handle(ctx), |me, _, event, ctx| {
+                me.handle_cloud_preferences_syncer_event(event, ctx);
+            });
+        }
 
         let auth_view =
             ctx.add_typed_action_view(|ctx| AuthView::new(AuthViewVariant::Initial, ctx));
@@ -1751,7 +1756,7 @@ impl RootView {
             workspace_setting,
         };
 
-        let auth_onboarding_state = if auth_state.is_logged_in() {
+        let auth_onboarding_state = if is_terminal_core_mode() || auth_state.is_logged_in() {
             AuthOnboardingState::Terminal(workspace_args.create_workspace(ctx))
         } else {
             cfg_if! {
@@ -3494,6 +3499,23 @@ impl WorkspaceArgs {
 
 impl AuthOnboardingState {
     fn complete_auth_and_create_workspace(&mut self, ctx: &mut ViewContext<RootView>) {
+        if is_terminal_core_mode() {
+            match self {
+                AuthOnboardingState::Auth(args)
+                | AuthOnboardingState::ConfirmIncomingAuth(args) => {
+                    let workspace = args.clone().create_workspace(ctx);
+                    *self = AuthOnboardingState::Terminal(workspace);
+                    ctx.emit(RootViewEvent::AuthOnboardingStateChanged);
+                }
+                AuthOnboardingState::LoginSlide { target, .. } => {
+                    let workspace = target.to_workspace(ctx);
+                    *self = AuthOnboardingState::Terminal(workspace);
+                    ctx.emit(RootViewEvent::AuthOnboardingStateChanged);
+                }
+                _ => {}
+            }
+            return;
+        }
         // Check if we should show onboarding (only for users who are not yet onboarded).
         // The server-side `is_onboarded` flag is synced separately by
         // `RootView::sync_local_onboarding_to_server`, which runs on every `AuthComplete`
@@ -3529,6 +3551,19 @@ impl AuthOnboardingState {
     }
 
     fn try_open_onboarding_slides(&mut self, ctx: &mut ViewContext<RootView>) {
+        if is_terminal_core_mode() {
+            match self {
+                AuthOnboardingState::Auth(args)
+                | AuthOnboardingState::ConfirmIncomingAuth(args) => {
+                    let workspace = args.clone().create_workspace(ctx);
+                    *self = AuthOnboardingState::Terminal(workspace);
+                    ctx.emit(RootViewEvent::AuthOnboardingStateChanged);
+                }
+                AuthOnboardingState::Terminal(_) => {}
+                _ => return,
+            }
+            return;
+        }
         let target = match self {
             AuthOnboardingState::Auth(args) | AuthOnboardingState::ConfirmIncomingAuth(args) => {
                 AuthOnboardingTarget::Workspace(args.clone())

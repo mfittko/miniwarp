@@ -179,6 +179,106 @@ pub use util::bindings::cmd_or_ctrl_shift;
 pub mod workflows;
 pub mod workspace;
 
+const TERMINAL_CORE_DISABLED_FEATURE_FLAGS: &[FeatureFlag] = &[
+    FeatureFlag::CreatingSharedSessions,
+    FeatureFlag::ViewingSharedSessions,
+    FeatureFlag::AgentMode,
+    FeatureFlag::AgentModeAnalytics,
+    FeatureFlag::DynamicWorkflowEnums,
+    FeatureFlag::SharedWithMe,
+    FeatureFlag::AgentModeWorkflows,
+    FeatureFlag::AIRules,
+    FeatureFlag::SharedSessionWriteToLongRunningCommands,
+    FeatureFlag::BlockToolbeltSaveAsWorkflow,
+    FeatureFlag::SessionSharingAcls,
+    FeatureFlag::WorkflowAliases,
+    FeatureFlag::AIGeneratedOnboardingSuggestions,
+    FeatureFlag::AgentModePrimaryXML,
+    FeatureFlag::AgentModePrePlanXML,
+    FeatureFlag::AgentOnboarding,
+    FeatureFlag::SuggestedRules,
+    FeatureFlag::SuggestedAgentModeWorkflows,
+    FeatureFlag::ForceLogin,
+    FeatureFlag::PredictAMQueries,
+    FeatureFlag::FullSourceCodeEmbedding,
+    FeatureFlag::McpServer,
+    FeatureFlag::McpDebuggingIds,
+    FeatureFlag::ImageAsContext,
+    FeatureFlag::FileRetrievalTools,
+    FeatureFlag::ReloadStaleConversationFiles,
+    FeatureFlag::ReadImageFiles,
+    FeatureFlag::UsageBasedPricing,
+    FeatureFlag::CrossRepoContext,
+    FeatureFlag::CodebaseIndexPersistence,
+    FeatureFlag::AIContextMenuEnabled,
+    FeatureFlag::AtMenuOutsideOfAIMode,
+    FeatureFlag::AIResumeButton,
+    FeatureFlag::AgentDecidesCommandExecution,
+    FeatureFlag::CodebaseIndexSpeedbump,
+    FeatureFlag::ContextLineReviewComments,
+    FeatureFlag::NLDClassifierModelEnabled,
+    FeatureFlag::AIContextMenuCommands,
+    FeatureFlag::AIContextMenuCode,
+    FeatureFlag::ExpandEditToPane,
+    FeatureFlag::FallbackModelLoadOutputMessaging,
+    FeatureFlag::ProfilesDesignRevamp,
+    FeatureFlag::SearchCodebaseUI,
+    FeatureFlag::ConversationArtifacts,
+    FeatureFlag::SyncAmbientPlans,
+    FeatureFlag::Projects,
+    FeatureFlag::DriveObjectsAsContext,
+    FeatureFlag::PRCommentsSlashCommand,
+    FeatureFlag::PRCommentsV2,
+    FeatureFlag::PRCommentsSkill,
+    FeatureFlag::SelectionAsContext,
+    FeatureFlag::CodeModeChip,
+    FeatureFlag::GithubPrPromptChip,
+    FeatureFlag::CreateProjectFlow,
+    FeatureFlag::McpOauth,
+    FeatureFlag::AgentSharedSessions,
+    FeatureFlag::AmbientAgentsCommandLine,
+    FeatureFlag::CloudEnvironments,
+    FeatureFlag::ScheduledAmbientAgents,
+    FeatureFlag::AgentView,
+    FeatureFlag::AgentViewBlockContext,
+    FeatureFlag::CloudMode,
+    FeatureFlag::CloudModeFromLocalSession,
+    FeatureFlag::CloudModeHostSelector,
+    FeatureFlag::WarpManagedSecrets,
+    FeatureFlag::InteractiveConversationManagementView,
+    FeatureFlag::AgentTips,
+    FeatureFlag::AgentModeComputerUse,
+    FeatureFlag::LocalComputerUse,
+    FeatureFlag::CloudConversations,
+    FeatureFlag::AgentViewPromptChip,
+    FeatureFlag::AgentToolbarEditor,
+    FeatureFlag::AmbientAgentsRTC,
+    FeatureFlag::AgentViewConversationListView,
+    FeatureFlag::ListSkills,
+    FeatureFlag::LSPAsATool,
+    FeatureFlag::OzPlatformSkills,
+    FeatureFlag::AmbientAgentsImageUpload,
+    FeatureFlag::CloudModeImageContext,
+    FeatureFlag::BundledSkills,
+    FeatureFlag::OzLaunchModal,
+    FeatureFlag::OpenWarpLaunchModal,
+    FeatureFlag::FileBasedMcp,
+    FeatureFlag::SkillArguments,
+    FeatureFlag::ConversationsAsContext,
+    FeatureFlag::CLIAgentRichInput,
+    FeatureFlag::Orchestration,
+    FeatureFlag::OrchestrationV2,
+    FeatureFlag::OrchestrationEventPush,
+    FeatureFlag::PendingUserQueryIndicator,
+    FeatureFlag::QueueSlashCommand,
+    FeatureFlag::TransferControlTool,
+    FeatureFlag::OpenWarpNewSettingsModes,
+    FeatureFlag::HOAOnboardingFlow,
+    FeatureFlag::GitOperationsInCodeReview,
+    FeatureFlag::CloudModeSetupV2,
+    FeatureFlag::CloudModeInputV2,
+];
+
 #[cfg(feature = "integration_tests")]
 pub use persistence::testing as sqlite_testing;
 
@@ -1755,15 +1855,19 @@ fn initialize_app(
     });
     ctx.add_singleton_model(move |_| persistence_writer);
 
-    ctx.add_singleton_model(input_classifier::InputClassifierModel::new);
+    if !features::is_terminal_core_mode() {
+        ctx.add_singleton_model(input_classifier::InputClassifierModel::new);
+    }
 
     ctx.add_singleton_model(move |_| IgnoredSuggestionsModel::new(persisted_ignored_suggestions));
 
     // Subscribe WorkflowAliases to the UpdateManager so that it can be notified when objects are
     // trashed.
-    WorkflowAliases::handle(ctx).update(ctx, |aliases, ctx| {
-        aliases.connect(ctx);
-    });
+    if !features::is_terminal_core_mode() {
+        WorkflowAliases::handle(ctx).update(ctx, |aliases, ctx| {
+            aliases.connect(ctx);
+        });
+    }
 
     // When running natively, add the http server singleton to the application.
     #[cfg(not(target_family = "wasm"))]
@@ -2773,6 +2877,10 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         #[cfg(feature = "cloud_mode_input_v2")]
         FeatureFlag::CloudModeInputV2,
     ]);
+
+    if features::is_terminal_core_mode() {
+        flags.retain(|flag| !TERMINAL_CORE_DISABLED_FEATURE_FLAGS.contains(flag));
+    }
 
     flags
 }
