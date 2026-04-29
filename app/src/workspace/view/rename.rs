@@ -92,6 +92,8 @@ impl Workspace {
             let title = self.tab_rename_editor.as_ref(ctx).buffer_text(ctx);
             let tab = &self.tabs[tab_index];
             tab.pane_group.update(ctx, |view, ctx| {
+                // Only update the title if it was actually changed. Otherwise, lets assume
+                // user's intend was to cancel the operation.
                 if view.display_title(ctx) != title {
                     send_telemetry_from_ctx!(
                         TelemetryEvent::TabRenamed(TabRenameEvent::CustomNameSet),

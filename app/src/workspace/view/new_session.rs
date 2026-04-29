@@ -1,6 +1,18 @@
 use super::*;
 
 impl Workspace {
+    fn terminal_new_session_menu_item(shortcut_label: Option<String>) -> MenuItem<WorkspaceAction> {
+        let mut item = MenuItemFields::new("Terminal")
+            .with_on_select_action(WorkspaceAction::AddTerminalTab {
+                hide_homepage: false,
+            })
+            .with_icon(icons::Icon::LayoutAlt01);
+        if let Some(shortcut_label) = shortcut_label {
+            item = item.with_key_shortcut_label(Some(shortcut_label));
+        }
+        item.into_item()
+    }
+
     /// Clears the worktree sidecar state and hides the sidecar.
     pub(super) fn clear_worktree_sidecar_state(&mut self, ctx: &mut ViewContext<Self>) {
         self.show_new_session_sidecar = false;
@@ -159,15 +171,9 @@ impl Workspace {
 
             #[cfg(target_os = "windows")]
             {
-                menu_items.push(
-                    MenuItemFields::new("Terminal")
-                        .with_on_select_action(WorkspaceAction::AddTerminalTab {
-                            hide_homepage: false,
-                        })
-                        .with_icon(icons::Icon::LayoutAlt01)
-                        .with_key_shortcut_label(shortcut_label.clone())
-                        .into_item(),
-                );
+                menu_items.push(Self::terminal_new_session_menu_item(Some(
+                    shortcut_label.clone(),
+                )));
 
                 #[cfg(feature = "local_tty")]
                 if FeatureFlag::ShellSelector.is_enabled() {
@@ -197,15 +203,7 @@ impl Workspace {
 
             #[cfg(not(target_os = "windows"))]
             {
-                menu_items.push(
-                    MenuItemFields::new("Terminal")
-                        .with_on_select_action(WorkspaceAction::AddTerminalTab {
-                            hide_homepage: false,
-                        })
-                        .with_icon(icons::Icon::LayoutAlt01)
-                        .with_key_shortcut_label(shortcut_label)
-                        .into_item(),
-                );
+                menu_items.push(Self::terminal_new_session_menu_item(shortcut_label));
             }
 
             return menu_items;
@@ -233,15 +231,9 @@ impl Workspace {
             #[cfg(target_os = "windows")]
             {
                 let is_terminal_default = effective_default == DefaultSessionMode::Terminal;
-                let mut terminal_item = MenuItemFields::new("Terminal")
-                    .with_on_select_action(WorkspaceAction::AddTerminalTab {
-                        hide_homepage: false,
-                    })
-                    .with_icon(icons::Icon::LayoutAlt01);
-                if is_terminal_default {
-                    terminal_item = terminal_item.with_key_shortcut_label(shortcut_label.clone());
-                }
-                menu_items.push(terminal_item.into_item());
+                menu_items.push(Self::terminal_new_session_menu_item(
+                    is_terminal_default.then(|| shortcut_label.clone()),
+                ));
 
                 #[cfg(feature = "local_tty")]
                 if FeatureFlag::ShellSelector.is_enabled() {
@@ -269,15 +261,13 @@ impl Workspace {
 
             #[cfg(not(target_os = "windows"))]
             {
-                let mut terminal_item = MenuItemFields::new("Terminal")
-                    .with_on_select_action(WorkspaceAction::AddTerminalTab {
-                        hide_homepage: false,
-                    })
-                    .with_icon(icons::Icon::LayoutAlt01);
-                if effective_default == DefaultSessionMode::Terminal {
-                    terminal_item = terminal_item.with_key_shortcut_label(shortcut_label.clone());
-                }
-                menu_items.push(terminal_item.into_item());
+                menu_items.push(Self::terminal_new_session_menu_item(
+                    if effective_default == DefaultSessionMode::Terminal {
+                        shortcut_label.clone()
+                    } else {
+                        None
+                    },
+                ));
             }
         }
 
