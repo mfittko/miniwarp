@@ -39,7 +39,7 @@ use warpui::{
 
 const OPEN_WARP_AI_ITEM_BODY_TEXT: &str = "Ask Warp AI for command suggestions";
 const TRANSLATE_WITH_WARP_AI_ITEM_BODY_TEXT: &str =
-    "Suggest shell commands from your natural-language query";
+    "Suggest shell commands from your natural language query";
 
 #[derive(Clone, Debug)]
 pub enum WarpAISearchItem {
