@@ -107,7 +107,7 @@ impl CodeReviewHeader {
 
         if matches!(
             code_review_header_fields.primary_git_action_mode,
-            PrimaryGitActionMode::Commit | PrimaryGitActionMode::Push
+            PrimaryGitActionMode::Commit
         ) {
             row.add_child(
                 ChildView::new(&code_review_header_fields.git_operations_chevron).finish(),

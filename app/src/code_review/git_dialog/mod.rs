@@ -1,4 +1,4 @@
-//! Unified dialog for git operations (commit / create PR).
+//! Unified dialog for git operations (commit).
 //!
 //! `GitDialog` is a single view with multiple modes — each mode owns its own
 //! state, body renderer, and async op in its own submodule. The outer view
@@ -47,10 +47,8 @@ use crate::{
 };
 
 pub(crate) mod commit;
-pub(crate) mod pr;
 
 pub use commit::{CommitState, CommitSubAction};
-pub use pr::{PrState, PrSubAction};
 
 /// Describes which kind of `GitDialog` to open. Passed to
 /// `CodeReviewView::open_git_dialog` so the open path can be fully shared
@@ -58,7 +56,6 @@ pub use pr::{PrState, PrSubAction};
 #[derive(Clone, Copy, Debug)]
 pub enum GitDialogKind {
     Commit,
-    CreatePr,
 }
 
 pub fn init(ctx: &mut AppContext) {
@@ -97,7 +94,6 @@ pub enum GitDialogAction {
     Cancel,
     Confirm,
     Commit(CommitSubAction),
-    Pr(PrSubAction),
 }
 
 /// Events emitted to the parent view. Each mode handles its own success /
@@ -190,8 +186,8 @@ fn user_facing_git_error(raw: &str) -> &'static str {
 
 // ── Shared rendering helpers ─────────────────────────────────────────
 //
-// These helpers are used by per-mode body renderers (`commit::render_body`,
-// `pr::render_body`, etc.) and are kept here so the whole dialog lives in
+// These helpers are used by the commit renderer and are kept here so the
+// whole dialog lives in
 // one module.
 
 /// Renders a "Branch" label with git-branch icon and branch name.
@@ -471,13 +467,11 @@ fn render_file_list(files: &[FileChangeEntry], appearance: &Appearance) -> Box<d
 /// Mode-specific state. Outer chrome lives on `GitDialog` itself.
 pub enum GitDialogMode {
     Commit(CommitState),
-    CreatePr(PrState),
 }
 
 pub struct GitDialog {
     repo_path: PathBuf,
     branch_name: String,
-    parent_branch_name: Option<String>,
     mode: GitDialogMode,
     loading: bool,
     confirm_button: ViewHandle<ActionButton>,
@@ -489,22 +483,18 @@ impl GitDialog {
     pub fn new_for_commit(
         repo_path: PathBuf,
         branch_name: String,
-        parent_branch_name: Option<String>,
-        allow_create_pr: bool,
         has_upstream: bool,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         // Commit's confirm button is a static "Confirm" with no icon; the
         // segmented intent selector inside the dialog is the sole UI that
-        // communicates which of commit / commit-and-push / commit-and-create-PR
-        // will actually run on click.
+        // communicates which of commit / commit-and-push will actually run on click.
         let (confirm_button, cancel_button, close_button) =
             Self::build_dialog_buttons("Confirm", None, ctx);
-        let state = commit::new_state(&repo_path, allow_create_pr, has_upstream, ctx);
+        let state = commit::new_state(&repo_path, has_upstream, ctx);
         let this = Self {
             repo_path,
             branch_name,
-            parent_branch_name,
             mode: GitDialogMode::Commit(state),
             loading: false,
             confirm_button,
@@ -513,27 +503,6 @@ impl GitDialog {
         };
         this.refresh_confirm_enabled(ctx);
         this
-    }
-
-    pub fn new_for_pr(
-        repo_path: PathBuf,
-        branch_name: String,
-        parent_branch_name: Option<String>,
-        ctx: &mut ViewContext<Self>,
-    ) -> Self {
-        let (confirm_button, cancel_button, close_button) =
-            Self::build_dialog_buttons(pr::confirm_label_for(), Some(pr::confirm_icon_for()), ctx);
-        let state = pr::new_state(&repo_path, parent_branch_name.as_deref(), ctx);
-        Self {
-            repo_path,
-            branch_name,
-            parent_branch_name,
-            mode: GitDialogMode::CreatePr(state),
-            loading: false,
-            confirm_button,
-            cancel_button,
-            close_button,
-        }
     }
 
     fn build_dialog_buttons(
@@ -619,7 +588,6 @@ impl GitDialog {
                 !commit::is_ready_to_confirm(state, ctx),
                 commit::confirm_tooltip(state, ctx),
             ),
-            GitDialogMode::CreatePr(state) => (!pr::is_ready_to_confirm(state), None),
         };
         self.confirm_button.update(ctx, |b, ctx| {
             b.set_disabled(disabled, ctx);
@@ -630,15 +598,12 @@ impl GitDialog {
     fn title(&self) -> &'static str {
         match &self.mode {
             GitDialogMode::Commit(_) => "Commit your changes",
-            GitDialogMode::CreatePr(_) => "Create pull request",
         }
     }
 
     fn render_body(&self, app: &AppContext) -> Box<dyn Element> {
-        let appearance = Appearance::as_ref(app);
         match &self.mode {
             GitDialogMode::Commit(state) => commit::render_body(state, &self.branch_name, app),
-            GitDialogMode::CreatePr(state) => pr::render_body(state, &self.branch_name, appearance),
         }
     }
 
@@ -707,7 +672,6 @@ impl View for GitDialog {
         }
         match &self.mode {
             GitDialogMode::Commit(state) => commit::on_focus(state, ctx),
-            GitDialogMode::CreatePr(_) => {}
         }
     }
 
@@ -738,11 +702,9 @@ impl TypedActionView for GitDialog {
                 }
                 match &self.mode {
                     GitDialogMode::Commit(_) => commit::start_confirm(self, ctx),
-                    GitDialogMode::CreatePr(_) => pr::start_confirm(self, ctx),
                 }
             }
             GitDialogAction::Commit(sub) => commit::handle_sub_action(self, sub, ctx),
-            GitDialogAction::Pr(sub) => pr::handle_sub_action(self, sub, ctx),
         }
     }
 }

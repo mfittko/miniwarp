@@ -51,35 +51,7 @@ pub enum CodeReviewDiffMenuEvent {
 pub enum CodeReviewDiffMenuAction {
     ClickRow { index: usize },
     HoverRow { index: usize },
-    SelectUp,
-    SelectDown,
-    SelectEnter,
     Close,
-}
-
-pub fn init(app: &mut AppContext) {
-    app.register_fixed_bindings([
-        FixedBinding::new(
-            "up",
-            CodeReviewDiffMenuAction::SelectUp,
-            id!(CodeReviewDiffMenu::ui_name()),
-        ),
-        FixedBinding::new(
-            "down",
-            CodeReviewDiffMenuAction::SelectDown,
-            id!(CodeReviewDiffMenu::ui_name()),
-        ),
-        FixedBinding::new(
-            "enter",
-            CodeReviewDiffMenuAction::SelectEnter,
-            id!(CodeReviewDiffMenu::ui_name()),
-        ),
-        FixedBinding::new(
-            "escape",
-            CodeReviewDiffMenuAction::Close,
-            id!(CodeReviewDiffMenu::ui_name()),
-        ),
-    ]);
 }
 
 pub struct CodeReviewDiffMenu {
@@ -449,9 +421,6 @@ impl TypedActionView for CodeReviewDiffMenu {
                     ctx.notify();
                 }
             }
-            CodeReviewDiffMenuAction::SelectUp => self.select_prev(ctx),
-            CodeReviewDiffMenuAction::SelectDown => self.select_next(ctx),
-            CodeReviewDiffMenuAction::SelectEnter => self.select_enter(ctx),
             CodeReviewDiffMenuAction::Close => self.emit_close(ctx),
         }
     }

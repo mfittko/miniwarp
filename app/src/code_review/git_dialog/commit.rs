@@ -1,6 +1,6 @@
 //! Commit mode for [`GitDialog`]. Drafts a commit message via AI on open,
-//! then on confirm runs `run_commit` and optionally chains `run_push` /
-//! `create_pr` per the selected intent.
+//! then on confirm runs `run_commit` and optionally chains `run_push`
+//! per the selected intent.
 
 use std::path::Path;
 
@@ -20,10 +20,9 @@ use warpui::{
 use crate::{
     ai::generate_code_review_content::api::{GenerateCodeReviewContentRequest, OutputType},
     code_review::git_dialog::{
-        interactive_path_future,
-        pr::{create_pr_with_ai_content, show_pr_created_toast},
-        render_branch_section, render_file_changes_box, should_send_git_ops_ai_request, show_toast,
-        user_facing_git_error, GitDialog, GitDialogAction, GitDialogEvent, GitDialogMode,
+        interactive_path_future, render_branch_section, render_file_changes_box,
+        should_send_git_ops_ai_request, show_toast, user_facing_git_error, GitDialog,
+        GitDialogAction, GitDialogEvent, GitDialogMode,
     },
     editor::{
         EditorOptions, EditorView, Event as EditorEvent, InteractionState,
@@ -31,7 +30,7 @@ use crate::{
     },
     server::server_api::ServerApiProvider,
     ui_components::icons::Icon,
-    util::git::{FileChangeEntry, PrInfo},
+    util::git::FileChangeEntry,
     view_components::action_button::{ActionButton, ButtonSize, SecondaryTheme},
 };
 
@@ -41,7 +40,6 @@ use crate::{
 pub enum CommitIntent {
     CommitOnly,
     CommitAndPush,
-    CommitAndCreatePr,
 }
 
 /// What actually happened when a commit confirm ran to completion. Keeps
@@ -50,7 +48,6 @@ pub enum CommitIntent {
 enum CommitOutcome {
     Committed,
     Pushed,
-    PrCreated(PrInfo),
 }
 
 /// Commit-specific sub-actions, dispatched wrapped in `GitDialogAction::Commit`.
@@ -86,16 +83,10 @@ pub struct CommitState {
     pub(super) message_editor: ViewHandle<EditorView>,
     commit_button: ViewHandle<ActionButton>,
     commit_and_push_button: ViewHandle<ActionButton>,
-    /// `None` when creating a PR doesn't make sense for this branch —
-    /// either a PR already exists or we're on the repo's main branch.
-    /// The intent is hidden entirely in either case; an existing PR is
-    /// still reachable via the git operations menu in the header.
-    commit_and_create_pr_button: Option<ViewHandle<ActionButton>>,
 }
 
 pub(super) fn new_state(
     repo_path: &Path,
-    allow_create_pr: bool,
     has_upstream: bool,
     ctx: &mut ViewContext<GitDialog>,
 ) -> CommitState {
@@ -167,22 +158,6 @@ pub(super) fn new_state(
             })
     });
 
-    let commit_and_create_pr_button = if allow_create_pr {
-        Some(ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Commit and create PR", SecondaryTheme)
-                .with_size(ButtonSize::XSmall)
-                .with_height(32.)
-                .with_icon(Icon::Github)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(GitDialogAction::Commit(CommitSubAction::SetIntent(
-                        CommitIntent::CommitAndCreatePr,
-                    )))
-                })
-        }))
-    } else {
-        None
-    };
-
     let include_unstaged = true;
     let repo_path_for_load = repo_path.to_path_buf();
     ctx.spawn(
@@ -190,9 +165,7 @@ pub(super) fn new_state(
             crate::util::git::get_file_change_entries(&repo_path_for_load, include_unstaged).await
         },
         move |me, result, ctx| {
-            let GitDialogMode::Commit(state) = &mut me.mode else {
-                return;
-            };
+            let GitDialogMode::Commit(state) = &mut me.mode;
             let has_changes = match result {
                 Ok(entries) => {
                     let has_changes = !entries.is_empty();
@@ -223,7 +196,6 @@ pub(super) fn new_state(
         message_editor,
         commit_button,
         commit_and_push_button,
-        commit_and_create_pr_button,
     };
     apply_intent_selector(&state, ctx);
     state
@@ -285,10 +257,8 @@ fn generate_commit_message(
             anyhow::Ok(generated)
         },
         |me, result, ctx| {
-            let editor_handle = match &me.mode {
-                GitDialogMode::Commit(state) => state.message_editor.clone(),
-                _ => return,
-            };
+            let GitDialogMode::Commit(state) = &me.mode;
+            let editor_handle = state.message_editor.clone();
             match result {
                 Ok(generated) => {
                     let user_typed = !editor_handle.as_ref(ctx).buffer_text(ctx).trim().is_empty();
@@ -328,35 +298,29 @@ pub(super) fn handle_sub_action(
     }
     match action {
         CommitSubAction::SetIntent(new_intent) => {
-            if let GitDialogMode::Commit(state) = me.mode_mut() {
-                state.intent = *new_intent;
-            }
+            let GitDialogMode::Commit(state) = me.mode_mut();
+            state.intent = *new_intent;
             // Re-highlight the selected segment. The confirm button's
             // label is static ("Confirm"), so it doesn't need to update.
-            if let GitDialogMode::Commit(state) = me.mode() {
-                apply_intent_selector(state, ctx);
-            }
+            let GitDialogMode::Commit(state) = me.mode();
+            apply_intent_selector(state, ctx);
         }
         CommitSubAction::ToggleIncludeUnstaged => {
-            if let GitDialogMode::Commit(state) = me.mode_mut() {
-                state.include_unstaged = !state.include_unstaged;
-            }
+            let GitDialogMode::Commit(state) = me.mode_mut();
+            state.include_unstaged = !state.include_unstaged;
             reload_file_changes(me, ctx);
             ctx.notify();
         }
         CommitSubAction::ToggleChangesExpanded => {
-            if let GitDialogMode::Commit(state) = me.mode_mut() {
-                state.changes_expanded = !state.changes_expanded;
-            }
+            let GitDialogMode::Commit(state) = me.mode_mut();
+            state.changes_expanded = !state.changes_expanded;
             ctx.notify();
         }
     }
 }
 
 pub(super) fn start_confirm(me: &mut GitDialog, ctx: &mut ViewContext<GitDialog>) {
-    let GitDialogMode::Commit(state) = me.mode() else {
-        return;
-    };
+    let GitDialogMode::Commit(state) = me.mode();
     // `is_ready_to_confirm` already guarantees a non-empty message, but
     // guard against dispatch paths that could bypass the disabled state
     // (e.g. keyboard shortcut).
@@ -365,11 +329,9 @@ pub(super) fn start_confirm(me: &mut GitDialog, ctx: &mut ViewContext<GitDialog>
     };
     let intent = state.intent;
     let include_unstaged = state.include_unstaged;
-    let ai_autogen_enabled = should_send_git_ops_ai_request(ctx);
     let message_editor = state.message_editor.clone();
     let repo_path = me.repo_path().clone();
     let branch_name = me.branch_name().to_string();
-    let parent_branch = me.parent_branch_name.clone();
 
     me.set_loading(LOADING_LABEL, ctx);
 
@@ -378,11 +340,6 @@ pub(super) fn start_confirm(me: &mut GitDialog, ctx: &mut ViewContext<GitDialog>
         editor.set_interaction_state(InteractionState::Disabled, ctx);
     });
 
-    let code_review_ai = if ai_autogen_enabled {
-        Some(ServerApiProvider::handle(ctx).read(ctx, |p, _| p.get_ai_client()))
-    } else {
-        None
-    };
     let path_future = interactive_path_future(ctx);
 
     ctx.spawn(
@@ -397,38 +354,6 @@ pub(super) fn start_confirm(me: &mut GitDialog, ctx: &mut ViewContext<GitDialog>
                     crate::util::git::run_push(&repo_path, &branch_name, path_env_ref).await?;
                     CommitOutcome::Pushed
                 }
-                CommitIntent::CommitAndCreatePr => {
-                    crate::util::git::run_push(&repo_path, &branch_name, path_env_ref).await?;
-                    let pr = match code_review_ai {
-                        Some(ai) => {
-                            // Reuse pr.rs's AI-title/body-with-fallback helper so
-                            // the standalone PR flow and this chain always produce
-                            // PRs the same way.
-                            create_pr_with_ai_content(
-                                &repo_path,
-                                &branch_name,
-                                parent_branch.as_deref(),
-                                ai.as_ref(),
-                                path_env_ref,
-                            )
-                            .await?
-                        }
-                        None => {
-                            // AI autogen disabled (global toggle, per-feature
-                            // toggle, or enterprise) — skip AI entirely and use
-                            // `gh pr create --fill`
-                            crate::util::git::create_pr(
-                                &repo_path,
-                                None,
-                                None,
-                                parent_branch.as_deref(),
-                                path_env_ref,
-                            )
-                            .await?
-                        }
-                    };
-                    CommitOutcome::PrCreated(pr)
-                }
             };
             anyhow::Ok(outcome)
         },
@@ -439,9 +364,6 @@ pub(super) fn start_confirm(me: &mut GitDialog, ctx: &mut ViewContext<GitDialog>
                 }
                 Ok(CommitOutcome::Pushed) => {
                     show_toast("Changes committed and pushed.", ctx);
-                }
-                Ok(CommitOutcome::PrCreated(pr)) => {
-                    show_pr_created_toast(&pr, ctx);
                 }
                 Err(err) => {
                     log::error!("Commit failed: {err}");
@@ -477,31 +399,23 @@ fn apply_intent_selector(state: &CommitState, ctx: &mut ViewContext<GitDialog>) 
     state.commit_and_push_button.update(ctx, |b, ctx| {
         b.set_active(state.intent == CommitIntent::CommitAndPush, ctx);
     });
-    if let Some(button) = &state.commit_and_create_pr_button {
-        button.update(ctx, |b, ctx| {
-            b.set_active(state.intent == CommitIntent::CommitAndCreatePr, ctx);
-        });
-    }
 }
 
 fn reload_file_changes(me: &mut GitDialog, ctx: &mut ViewContext<GitDialog>) {
     let repo_path = me.repo_path().clone();
-    let include_unstaged = match me.mode() {
-        GitDialogMode::Commit(state) => state.include_unstaged,
-        _ => return,
-    };
+    let GitDialogMode::Commit(state) = me.mode();
+    let include_unstaged = state.include_unstaged;
     ctx.spawn(
         async move { crate::util::git::get_file_change_entries(&repo_path, include_unstaged).await },
         |me, result, ctx| {
-            if let GitDialogMode::Commit(state) = &mut me.mode {
-                match result {
-                    Ok(entries) => {
-                        state.file_changes = entries;
-                        me.refresh_confirm_enabled(ctx);
-                        ctx.notify();
-                    }
-                    Err(err) => log::warn!("Failed to reload file changes: {err}"),
+            let GitDialogMode::Commit(state) = &mut me.mode;
+            match result {
+                Ok(entries) => {
+                    state.file_changes = entries;
+                    me.refresh_confirm_enabled(ctx);
+                    ctx.notify();
                 }
+                Err(err) => log::warn!("Failed to reload file changes: {err}"),
             }
         },
     );
@@ -653,20 +567,13 @@ fn render_message_editor(
 }
 
 fn render_intent_buttons(state: &CommitState) -> Box<dyn Element> {
-    let mut column = Flex::column()
+    Flex::column()
         .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
         .with_child(ChildView::new(&state.commit_button).finish())
         .with_child(
             Container::new(ChildView::new(&state.commit_and_push_button).finish())
                 .with_margin_top(4.)
                 .finish(),
-        );
-    if let Some(button) = &state.commit_and_create_pr_button {
-        column.add_child(
-            Container::new(ChildView::new(button).finish())
-                .with_margin_top(4.)
-                .finish(),
-        );
-    }
-    column.finish()
+        )
+        .finish()
 }

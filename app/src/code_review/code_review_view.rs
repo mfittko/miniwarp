@@ -282,11 +282,8 @@ where
 /// Determines which primary git action the code review header should present.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PrimaryGitActionMode {
-    /// There are uncommitted changes. Primary = Commit, dropdown shows
-    /// Commit / Create PR with per-item disabled states.
+    /// There are uncommitted changes. Primary = Commit.
     Commit,
-    /// Nothing to commit or push, and no existing PR. Primary = Create PR, chevron hidden.
-    CreatePr,
     /// Nothing to commit or push, and a PR exists for this branch. Primary = PR #N, chevron hidden.
     ViewPr,
 }
@@ -387,7 +384,6 @@ pub enum CodeReviewAction {
     OpenRepository,
     OpenCommitDialog,
     ToggleGitOperationsMenu,
-    OpenCreatePrDialog,
     ViewPr(String),
 }
 
@@ -3686,7 +3682,7 @@ impl CodeReviewView {
         code_editor_view: &ViewHandle<LocalCodeEditorView>,
         file: &FileDiffAndContent,
         is_initial_setup: bool,
-        comment_line_numbers: &[LineCount],
+        _comment_line_numbers: &[LineCount],
         ctx: &mut ViewContext<Self>,
     ) {
         if let Some(file_content) = &file.content_at_head {
@@ -3708,7 +3704,7 @@ impl CodeReviewView {
                     None
                 };
 
-                let mut range = None;
+                let range = None;
 
                 // When global buffer is enabled (and file is not deleted), we only need to set the base to the content at HEAD.
                 // For deleted files or when global buffer is disabled, we need to populate the buffer directly.
@@ -6695,35 +6691,15 @@ impl CodeReviewView {
             .diff_state_model
             .read(ctx, |model, _| model.get_current_branch_name())
             .unwrap_or_default();
-        let parent_branch_name = self
-            .diff_state_model
-            .read(ctx, |model, _| model.get_parent_branch_name());
 
         let dialog = match kind {
             GitDialogKind::Commit => {
-                // Hide the "Commit and create PR" intent when it wouldn't make
-                // sense: a PR already exists for this branch, or we're on the
-                // repo's main branch (creating a PR from main is invalid).
-                // `has_upstream` controls the label/icon on the push-chained
-                // intent (Commit and push vs Commit and publish).
                 let diff_state = self.diff_state_model.as_ref(ctx);
-                let allow_create_pr =
-                    diff_state.pr_info().is_none() && !diff_state.is_on_main_branch();
                 let has_upstream = diff_state.upstream_ref().is_some();
                 ctx.add_typed_action_view(|ctx| {
-                    GitDialog::new_for_commit(
-                        repo_path,
-                        branch_name,
-                        parent_branch_name,
-                        allow_create_pr,
-                        has_upstream,
-                        ctx,
-                    )
+                    GitDialog::new_for_commit(repo_path, branch_name, has_upstream, ctx)
                 })
             }
-            GitDialogKind::CreatePr => ctx.add_typed_action_view(|ctx| {
-                GitDialog::new_for_pr(repo_path, branch_name, parent_branch_name, ctx)
-            }),
         };
 
         ctx.subscribe_to_view(&dialog, move |me, _, event, ctx| {
@@ -6747,17 +6723,11 @@ impl CodeReviewView {
     fn primary_git_action_mode(&self, app: &AppContext) -> PrimaryGitActionMode {
         let diff_state = self.diff_state_model.as_ref(app);
         let has_uncommitted_changes = self.has_uncommitted_changes(app);
-        let has_upstream = diff_state.upstream_ref().is_some();
-        // False when upstream == main (e.g. after `git checkout -b feature origin/master`),
-        // which means the branch hasn't been pushed to its own remote ref yet.
-        let upstream_differs_from_main = diff_state.upstream_differs_from_main();
 
         if has_uncommitted_changes {
             PrimaryGitActionMode::Commit
         } else if diff_state.pr_info().is_some() {
             PrimaryGitActionMode::ViewPr
-        } else if has_upstream && !diff_state.is_on_main_branch() && upstream_differs_from_main {
-            PrimaryGitActionMode::CreatePr
         } else {
             // Nothing actionable — show Commit disabled.
             PrimaryGitActionMode::Commit
@@ -6786,18 +6756,6 @@ impl CodeReviewView {
                 self.git_operations_chevron.update(ctx, |button, ctx| {
                     button.set_disabled(disabled, ctx);
                     button.set_tooltip(disabled.then_some("No git actions available"), ctx);
-                });
-            }
-            PrimaryGitActionMode::CreatePr => {
-                self.git_primary_action_button.update(ctx, |button, ctx| {
-                    button.set_label("Create PR", ctx);
-                    button.set_icon(Some(Icon::Github), ctx);
-                    button.set_disabled(false, ctx);
-                    button.set_on_click(
-                        |ctx| ctx.dispatch_typed_action(CodeReviewAction::OpenCreatePrDialog),
-                        ctx,
-                    );
-                    button.clear_adjoined_side(ctx);
                 });
             }
             PrimaryGitActionMode::ViewPr => {
@@ -6836,43 +6794,11 @@ impl CodeReviewView {
             .into_item()
     }
 
-    /// Returns the PR dropdown item: "PR #N" linking to the existing PR, or
-    /// "Create PR" to open the dialog. Create PR is disabled on main, when the
-    /// branch has no upstream, or when the upstream is the same ref as main
-    /// (e.g. a worktree branch whose tracking was auto-set to origin/master).
-    fn pr_menu_item(&self, app: &AppContext) -> MenuItem<CodeReviewAction> {
-        let diff_state = self.diff_state_model.as_ref(app);
-        if let Some(pr_info) = diff_state.pr_info().cloned() {
-            MenuItemFields::new(format!("PR #{}", pr_info.number))
-                .with_icon(Icon::Github)
-                .with_on_select_action(CodeReviewAction::ViewPr(pr_info.url))
-                .into_item()
-        } else {
-            let is_on_main = diff_state.is_on_main_branch();
-            let has_upstream = diff_state.upstream_ref().is_some();
-            let upstream_differs_from_main = diff_state.upstream_differs_from_main();
-            MenuItemFields::new("Create PR")
-                .with_icon(Icon::Github)
-                .with_on_select_action(CodeReviewAction::OpenCreatePrDialog)
-                .with_disabled(is_on_main || !has_upstream || !upstream_differs_from_main)
-                .into_item()
-        }
-    }
-
-    /// Items for the git operations dropdown (chevron button). All supported
-    /// operations (Commit / Create PR) are always listed so the
-    /// dropdown shape is stable across modes; the primary mode determines
-    /// which are enabled.
+    /// Items for the git operations dropdown (chevron button).
     fn git_operations_menu_items(&self, app: &AppContext) -> Vec<MenuItem<CodeReviewAction>> {
         match self.primary_git_action_mode(app) {
-            PrimaryGitActionMode::Commit => vec![
-                Self::commit_menu_item(false),
-                self.pr_menu_item(app),
-            ],
-            PrimaryGitActionMode::CreatePr | PrimaryGitActionMode::ViewPr => {
-                // Chevron is hidden in these modes, so the menu is never opened.
-                vec![]
-            }
+            PrimaryGitActionMode::Commit => vec![Self::commit_menu_item(false)],
+            PrimaryGitActionMode::ViewPr => vec![],
         }
     }
 
@@ -7571,9 +7497,6 @@ impl TypedActionView for CodeReviewView {
             }
             CodeReviewAction::OpenCommitDialog => {
                 self.open_git_dialog(GitDialogKind::Commit, ctx);
-            }
-            CodeReviewAction::OpenCreatePrDialog => {
-                self.open_git_dialog(GitDialogKind::CreatePr, ctx);
             }
             CodeReviewAction::ViewPr(url) => {
                 ctx.open_url(url);
