@@ -14,8 +14,6 @@ use warpui::{
         ScrollableElement, ScrollbarWidth, Text, UniformList, UniformListState,
     },
     fonts::{Properties, Weight},
-    id,
-    keymap::FixedBinding,
     ui_components::components::{Coords, UiComponent, UiComponentStyles},
     AppContext, Entity, FocusContext, SingletonEntity as _, TypedActionView, View, ViewContext,
     ViewHandle,
