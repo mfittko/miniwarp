@@ -6,6 +6,7 @@ pub use data_source::*;
 pub use view::*;
 
 use ai::skills::SkillReference;
+use crate::features::is_terminal_core_mode;
 use warp_core::features::FeatureFlag;
 use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::appearance::Appearance;
@@ -597,6 +598,10 @@ impl Input {
                 ctx.dispatch_typed_action(&WorkspaceAction::SendFeedback);
             }
             open_code_review if command.name == commands::OPEN_CODE_REVIEW.name => {
+                if is_terminal_core_mode() {
+                    show_error_toast("Code review has been removed from Miniwarp".to_owned(), ctx);
+                    return true;
+                }
                 ctx.dispatch_typed_action(&TerminalAction::ToggleCodeReviewPane {
                     entrypoint: CodeReviewPaneEntrypoint::SlashCommand,
                 });

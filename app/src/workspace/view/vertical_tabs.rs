@@ -22,6 +22,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use crate::appearance::Appearance;
+use crate::features::is_terminal_core_mode;
 use crate::context_chips::display_chip::GitLineChanges;
 use crate::context_chips::github_pr_display_text_from_url;
 use crate::drive::{cloud_object_styling::warp_drive_icon_color, DriveObjectType};
@@ -4036,6 +4037,9 @@ fn render_terminal_diff_stats_badge(
         )
     })
     .on_click(move |ctx, app, _| {
+        if is_terminal_core_mode() {
+            return;
+        }
         send_telemetry_from_app_ctx!(
             VerticalTabsTelemetryEvent::DiffStatsChipClicked { entrypoint },
             app

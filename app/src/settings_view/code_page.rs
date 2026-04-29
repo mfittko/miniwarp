@@ -15,6 +15,7 @@ use crate::{
     },
     appearance::Appearance,
     code::lsp_telemetry::{LspControlActionType, LspEnablementSource, LspTelemetryEvent},
+    features::is_terminal_core_mode,
     send_telemetry_from_ctx,
     settings::{AISettings, CodeSettings},
     terminal::general_settings::GeneralSettings,
@@ -301,12 +302,17 @@ impl CodeSettingsPageView {
             let mut code_editor_review_widgets: Vec<
                 Box<dyn SettingsWidget<View = Self>>,
             > = vec![];
+            if !is_terminal_core_mode() {
+                code_editor_review_widgets.extend([
+                    Box::new(AutoOpenCodeReviewPaneCodeWidget::default())
+                        as Box<dyn SettingsWidget<View = Self>>,
+                    Box::new(CodeReviewPanelToggleWidget::default()),
+                    Box::new(CodeReviewDiffStatsToggleWidget::default()),
+                ]);
+            }
             code_editor_review_widgets.extend([
-                Box::new(AutoOpenCodeReviewPaneCodeWidget::default())
+                Box::new(ProjectExplorerToggleWidget::default())
                     as Box<dyn SettingsWidget<View = Self>>,
-                Box::new(CodeReviewPanelToggleWidget::default()),
-                Box::new(CodeReviewDiffStatsToggleWidget::default()),
-                Box::new(ProjectExplorerToggleWidget::default()),
                 Box::new(GlobalSearchToggleWidget::default()),
             ]);
             let categories = vec![
@@ -376,12 +382,17 @@ impl CodeSettingsPageView {
                     CodeSubpage::EditorAndCodeReview => {
                         #[cfg(feature = "local_fs")]
                         widgets.push(Box::new(ExternalEditorCodeWidget));
+                        if !is_terminal_core_mode() {
+                            widgets.extend([
+                                Box::new(AutoOpenCodeReviewPaneCodeWidget::default())
+                                    as Box<dyn SettingsWidget<View = Self>>,
+                                Box::new(CodeReviewPanelToggleWidget::default()),
+                                Box::new(CodeReviewDiffStatsToggleWidget::default()),
+                            ]);
+                        }
                         widgets.extend([
-                            Box::new(AutoOpenCodeReviewPaneCodeWidget::default())
+                            Box::new(ProjectExplorerToggleWidget::default())
                                 as Box<dyn SettingsWidget<View = Self>>,
-                            Box::new(CodeReviewPanelToggleWidget::default()),
-                            Box::new(CodeReviewDiffStatsToggleWidget::default()),
-                            Box::new(ProjectExplorerToggleWidget::default()),
                             Box::new(GlobalSearchToggleWidget::default()),
                         ]);
                     }
@@ -425,12 +436,17 @@ impl CodeSettingsPageView {
             let mut code_editor_review_widgets: Vec<
                 Box<dyn SettingsWidget<View = Self>>,
             > = vec![];
+            if !is_terminal_core_mode() {
+                code_editor_review_widgets.extend([
+                    Box::new(AutoOpenCodeReviewPaneCodeWidget::default())
+                        as Box<dyn SettingsWidget<View = Self>>,
+                    Box::new(CodeReviewPanelToggleWidget::default()),
+                    Box::new(CodeReviewDiffStatsToggleWidget::default()),
+                ]);
+            }
             code_editor_review_widgets.extend([
-                Box::new(AutoOpenCodeReviewPaneCodeWidget::default())
+                Box::new(ProjectExplorerToggleWidget::default())
                     as Box<dyn SettingsWidget<View = Self>>,
-                Box::new(CodeReviewPanelToggleWidget::default()),
-                Box::new(CodeReviewDiffStatsToggleWidget::default()),
-                Box::new(ProjectExplorerToggleWidget::default()),
                 Box::new(GlobalSearchToggleWidget::default()),
             ]);
             let categories = vec![

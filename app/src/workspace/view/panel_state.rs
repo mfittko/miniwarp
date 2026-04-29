@@ -168,7 +168,9 @@ impl Workspace {
         context: Option<&CodeReviewPaneContext>,
         ctx: &mut ViewContext<Self>,
     ) {
-        if !*TabSettings::as_ref(ctx).show_code_review_button {
+        if crate::features::is_terminal_core_mode()
+            || !*TabSettings::as_ref(ctx).show_code_review_button
+        {
             return;
         }
 

@@ -25,6 +25,7 @@ use warpui::r#async::Timer;
 
 use crate::code_review::diff_state::GitDeltaPreference;
 use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
+use crate::features::is_terminal_core_mode;
 use anyhow::anyhow;
 use parking_lot::FairMutex;
 use pathfinder_color::ColorU;
@@ -220,6 +221,9 @@ impl TerminalView {
                 });
             }
             UseAgentToolbarEvent::ToggleCodeReviewPane(cli_agent) => {
+                if is_terminal_core_mode() {
+                    return;
+                }
                 self.toggle_code_review_pane(
                     GitDeltaPreference::Always,
                     CodeReviewPaneEntrypoint::CLIAgentView,

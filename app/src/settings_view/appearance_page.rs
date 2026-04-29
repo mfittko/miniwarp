@@ -279,7 +279,8 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         ),
     );
 
-    if !FeatureFlag::OpenWarpNewSettingsModes.is_enabled() {
+    if !crate::features::is_terminal_core_mode() && !FeatureFlag::OpenWarpNewSettingsModes.is_enabled()
+    {
         toggle_binding_pairs.push(
             ToggleSettingActionPair::custom(
                 SettingActionPairDescriptions::new(
@@ -4468,6 +4469,9 @@ impl SettingsWidget for CodeReviewButtonWidget {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
+        if crate::features::is_terminal_core_mode() {
+            return Box::new(Empty);
+        }
         let tab_settings = TabSettings::as_ref(app);
 
         render_body_item::<AppearancePageAction>(

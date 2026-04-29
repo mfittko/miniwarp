@@ -180,6 +180,11 @@ pub mod workflows;
 pub mod workspace;
 
 const TERMINAL_CORE_DISABLED_FEATURE_FLAGS: &[FeatureFlag] = &[
+    FeatureFlag::CodeReviewSaveChanges,
+    FeatureFlag::CodeReviewFind,
+    FeatureFlag::AutoOpenCodeReviewPane,
+    FeatureFlag::InlineCodeReview,
+    FeatureFlag::EmbeddedCodeReviewComments,
     FeatureFlag::CreatingSharedSessions,
     FeatureFlag::ViewingSharedSessions,
     FeatureFlag::AgentMode,
@@ -1571,7 +1576,7 @@ fn initialize_app(
         terminal::view::init_environment::mode_selector::init(ctx);
         coding_entrypoints::project_buttons::init(ctx);
     }
-    if FeatureFlag::CodeReviewSaveChanges.is_enabled() {
+    if !features::is_terminal_core_mode() && FeatureFlag::CodeReviewSaveChanges.is_enabled() {
         code_review::init(ctx);
     }
 

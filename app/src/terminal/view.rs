@@ -25161,6 +25161,9 @@ impl TypedActionView for TerminalView {
                 ctx.notify();
             }
             ToggleCodeReviewPane { entrypoint } => {
+                if crate::features::is_terminal_core_mode() {
+                    return;
+                }
                 ctx.emit(Event::ToggleCodeReviewPane(CodeReviewPanelArg {
                     repo_path: self.current_repo_path.clone(),
                     terminal_view: self.view_handle.clone(),

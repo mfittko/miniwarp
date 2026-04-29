@@ -22,6 +22,7 @@ use crate::{
         ENTER_CLOUD_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE,
     },
     appearance::Appearance,
+    features::is_terminal_core_mode,
     settings::{AISettings, AISettingsChangedEvent, InputModeSettings},
     terminal::{
         self,
@@ -232,7 +233,7 @@ impl View for TerminalViewZeroStateBlock {
             ),
         ];
 
-        if *TabSettings::as_ref(app).show_code_review_button {
+        if !is_terminal_core_mode() && *TabSettings::as_ref(app).show_code_review_button {
             if let Some(keystroke) =
                 keybinding_name_to_keystroke(TOGGLE_RIGHT_PANEL_BINDING_NAME, app)
             {

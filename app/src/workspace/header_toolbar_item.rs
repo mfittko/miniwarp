@@ -74,7 +74,7 @@ impl HeaderToolbarItemKind {
                     && FeatureFlag::AgentManagementView.is_enabled()
                     && !is_web_anonymous_user
             }
-            Self::CodeReview => cfg!(feature = "local_fs"),
+            Self::CodeReview => cfg!(feature = "local_fs") && !crate::features::is_terminal_core_mode(),
             Self::NotificationsMailbox => FeatureFlag::HOANotifications.is_enabled(),
         }
     }
@@ -86,7 +86,10 @@ impl HeaderToolbarItemKind {
             return false;
         }
         match self {
-            Self::CodeReview => *TabSettings::as_ref(app).show_code_review_button.value(),
+            Self::CodeReview => {
+                !crate::features::is_terminal_core_mode()
+                    && *TabSettings::as_ref(app).show_code_review_button.value()
+            }
             Self::NotificationsMailbox => *AISettings::as_ref(app).show_agent_notifications,
             _ => true,
         }

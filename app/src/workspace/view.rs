@@ -12230,9 +12230,15 @@ impl Workspace {
                 self.run_tab_config_skill(path, ctx);
             }
             pane_group::Event::OpenCodeReviewPane(arg) => {
+                if is_terminal_core_mode() {
+                    return;
+                }
                 self.open_code_review_panel_from_arg(arg, pane_group.clone(), ctx);
             }
             pane_group::Event::ToggleCodeReviewPane(arg) => {
+                if is_terminal_core_mode() {
+                    return;
+                }
                 self.toggle_right_panel(&pane_group, ctx);
                 let active_conversation_id = arg.terminal_view.upgrade(ctx).and_then(|tv| {
                     BlocklistAIHistoryModel::as_ref(ctx).active_conversation_id(tv.id())
@@ -13036,6 +13042,9 @@ impl Workspace {
                 comment,
                 diff_mode,
             } => {
+                if is_terminal_core_mode() {
+                    return;
+                }
                 self.open_code_review_panel_from_arg(open_code_review, pane_group.clone(), ctx);
 
                 let Some(repo_path) = &open_code_review.repo_path else {
@@ -15767,7 +15776,8 @@ impl Workspace {
             .with_height(16.)
             .finish();
 
-        let show_diff_stats = *TabSettings::as_ref(ctx).show_code_review_diff_stats;
+        let show_diff_stats =
+            !is_terminal_core_mode() && *TabSettings::as_ref(ctx).show_code_review_diff_stats;
 
         let line_changes = if show_diff_stats {
             self.active_tab_pane_group()
@@ -19141,6 +19151,9 @@ impl TypedActionView for Workspace {
             }
             #[cfg(feature = "local_fs")]
             OpenCodeReviewPanel(locator) => {
+                if is_terminal_core_mode() {
+                    return;
+                }
                 let pane_group_handle = self
                     .tabs
                     .iter()

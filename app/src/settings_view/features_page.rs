@@ -2501,7 +2501,8 @@ impl FeaturesPageView {
             general_widgets.push(Box::new(MouseScrollMultiplierWidget::default()));
         }
 
-        if FeatureFlag::AutoOpenCodeReviewPane.is_enabled()
+        if !crate::features::is_terminal_core_mode()
+            && FeatureFlag::AutoOpenCodeReviewPane.is_enabled()
             && !FeatureFlag::OpenWarpNewSettingsModes.is_enabled()
         {
             general_widgets.push(Box::new(AutoOpenCodeReviewPaneWidget::default()));
