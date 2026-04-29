@@ -56,7 +56,6 @@ use warpui::{
 };
 
 const PHOTO_SIZE: f32 = 40.;
-const REFERRAL_CTA: &str = "Earn rewards by sharing Warp with friends & colleagues";
 const REGULAR_TEXT_FONT_SIZE: f32 = 12.;
 const VERTICAL_MARGIN: f32 = 24.;
 const LOG_OUT_TEXT: &str = "Log out";

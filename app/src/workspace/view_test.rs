@@ -686,7 +686,6 @@ fn new_session_menu_label(item: &MenuItem<WorkspaceAction>) -> String {
     }
 }
 
-
 #[test]
 fn test_tab_renaming_editor_selections() {
     App::test((), |mut app| async move {

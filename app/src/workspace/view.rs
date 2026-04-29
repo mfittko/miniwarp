@@ -15095,14 +15095,6 @@ impl Workspace {
         ctx.notify();
     }
 
-    /// Determines if the changelog is currently being shown or if the changelog request is
-    /// in-flight
-    ///
-    fn is_changelog_open_or_pending(&self, ctx: &mut ViewContext<Self>) -> bool {
-        self.current_workspace_state.is_resource_center_open
-            || self.changelog_model.as_ref(ctx).is_check_pending()
-    }
-
     fn focus_active_tab(&mut self, ctx: &mut ViewContext<Self>) {
         self.active_tab_pane_group().update(ctx, |tab, ctx| {
             tab.focus(ctx);
